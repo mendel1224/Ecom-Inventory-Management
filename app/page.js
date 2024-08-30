@@ -1,110 +1,72 @@
-"use client"; // Ensure this component is treated as a client component
+"use client"; // Ensure this component is treated as a client component in Next.js
 
 import { useState, useEffect } from 'react';
-import {
-  Box,
-  Typography,
-  Button,
-  Modal,
-  TextField,
-  Table,
-  TableHead,
-  TableBody,
-  TableRow,
-  TableCell,
-  Checkbox,
-  TableContainer,
-  Paper,
-  Stack,
-} from '@mui/material';
-import { firestore } from '@/firebase';
-
-import {
-  collection,
-  doc,
-  getDocs,
-  query,
-  setDoc,
-  deleteDoc,
-} from 'firebase/firestore';
-
-const style = {
-  position: 'absolute',
-  top: '50%',
-  left: '50%',
-  transform: 'translate(-50%, -50%)',
-  width: 400,
-  bgcolor: 'white',
-  border: '2px solid #000',
-  boxShadow: 24,
-  p: 4,
-  display: 'flex',
-  flexDirection: 'column',
-  gap: 3,
-};
+import SearchBar from './components/SearchBar';             // Import SearchBar component
+import InventoryTable from './components/InventoryTable';   // Import InventoryTable component
+import AddItemModal from './components/AddItemModal';       // Import AddItemModal component
+import { fetchInventory, addItemToInventory, removeItemFromInventory } from '../services/firebase'; // Import Firebase service functions
+import { Box, Button } from '@mui/material'; // Import MUI components
 
 export default function Home() {
+  // State to store the inventory items fetched from Firestore
   const [inventory, setInventory] = useState([]);
+  // State to control the open/close status of the AddItemModal
   const [open, setOpen] = useState(false);
+  // States to manage the form inputs for adding a new item
   const [itemName, setItemName] = useState('');
   const [purchaseDate, setPurchaseDate] = useState('');
   const [purchaseTotal, setPurchaseTotal] = useState('');
   const [sku, setSku] = useState('');
   const [size, setSize] = useState('');
-  const [searchQuery, setSearchQuery] = useState(''); // Add search state
+  // State to manage the search query entered by the user
+  const [searchQuery, setSearchQuery] = useState('');
 
-  const updateInventory = async () => {
-    const snapshot = query(collection(firestore, 'inventory'));
-    const docs = await getDocs(snapshot);
-    const inventoryList = [];
-    docs.forEach((doc) => {
-      inventoryList.push({ id: doc.id, ...doc.data() });
-    });
-    setInventory(inventoryList);
-  };
-
+  // useEffect hook to fetch and update the inventory data when the component mounts
   useEffect(() => {
+    const updateInventory = async () => {
+      // Fetch inventory items from Firestore
+      const inventoryList = await fetchInventory();
+      // Update the inventory state with the fetched data
+      setInventory(inventoryList);
+    };
+    // Call the updateInventory function when the component mounts
     updateInventory();
-  }, []);
+  }, []); // Empty dependency array ensures this runs only once on mount
 
+  // Function to add a new item to the inventory
   const addItem = async () => {
+    // Basic validation to ensure all fields are filled out
     if (!itemName || !purchaseDate || !purchaseTotal || !sku || !size) {
       alert('Please fill out all fields');
       return;
     }
 
-    // Sanitize the purchaseTotal by removing non-numeric characters (except for ".")
-    const sanitizedTotal = purchaseTotal.replace(/[^0-9.]/g, '');
+    // Add the new item to Firestore
+    await addItemToInventory(itemName, purchaseDate, purchaseTotal, sku, size);
+    // Fetch the updated inventory list and update the state
+    const inventoryList = await fetchInventory();
+    setInventory(inventoryList);
 
-    const docRef = doc(collection(firestore, 'inventory'), itemName);
-    const docData = {
-      name: itemName,
-      purchaseDate: purchaseDate,
-      purchaseTotal: parseFloat(sanitizedTotal), // Store as a number
-      sku: sku,
-      size: size,
-    };
-
-    await setDoc(docRef, docData);
-    await updateInventory();
+    // Reset form fields
     setItemName('');
     setPurchaseDate('');
     setPurchaseTotal('');
     setSku('');
     setSize('');
-    handleClose();
+    // Close the modal
+    setOpen(false);
   };
 
-  const removeItem = async (item) => {
-    const docRef = doc(collection(firestore, 'inventory'), item);
-    await deleteDoc(docRef);
-    await updateInventory();
+  // Function to remove an item from the inventory
+  const removeItem = async (itemId) => {
+    // Remove the item from Firestore using its unique ID
+    await removeItemFromInventory(itemId);
+    // Fetch the updated inventory list and update the state
+    const inventoryList = await fetchInventory();
+    setInventory(inventoryList);
   };
 
-  const handleOpen = () => setOpen(true);
-  const handleClose = () => setOpen(false);
-
-  // Filter inventory based on the search query
+  // Filter the inventory based on the search query (searching by name or SKU)
   const filteredInventory = inventory.filter(
     (item) =>
       item.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -113,121 +75,33 @@ export default function Home() {
 
   return (
     <Box width="100vw" padding={4}>
-      <TextField
-        label="Search by Name or SKU"
-        variant="outlined"
-        fullWidth
-        value={searchQuery}
-        onChange={(e) => setSearchQuery(e.target.value)}
-        sx={{ marginBottom: 2 }} // Add some margin at the bottom
-      />
-      <Button variant="contained" onClick={handleOpen}>
+      {/* Render the SearchBar component, passing down the searchQuery and setSearchQuery as props */}
+      <SearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
+
+      {/* Button to open the AddItemModal */}
+      <Button variant="contained" onClick={() => setOpen(true)}>
         Add New Item
       </Button>
-      <TableContainer component={Paper} sx={{ marginTop: 2 }}>
-        <Table>
-          <TableHead>
-            <TableRow>
-              <TableCell padding="checkbox">
-                <Checkbox />
-              </TableCell>
-              <TableCell>Name</TableCell>
-              <TableCell>Size</TableCell>
-              <TableCell>SKU</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Purchase Date</TableCell>
-              <TableCell>Purchase Total</TableCell>
-              <TableCell align="right">Actions</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filteredInventory.map(({ id, name, size, sku, purchaseDate, purchaseTotal }) => (
-              <TableRow key={id}>
-                <TableCell padding="checkbox">
-                  <Checkbox />
-                </TableCell>
-                <TableCell>{name}</TableCell>
-                <TableCell>{size}</TableCell>
-                <TableCell>{sku}</TableCell>
-                <TableCell>Listed</TableCell> {/* Or Unlisted based on your data */}
-                <TableCell>{purchaseDate}</TableCell>
-                <TableCell>
-                  {purchaseTotal !== undefined && purchaseTotal !== null
-                    ? `$${purchaseTotal.toFixed(2)}`
-                    : 'N/A'}
-                </TableCell>
-                <TableCell align="right">
-                  <Button
-                    variant="outlined"
-                    color="secondary"
-                    onClick={() => removeItem(id)}
-                  >
-                    Remove
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
-      </TableContainer>
-      <Modal
+
+      {/* Render the InventoryTable component, passing down the filteredInventory and removeItem as props */}
+      <InventoryTable inventory={filteredInventory} removeItem={removeItem} />
+
+      {/* Render the AddItemModal component, passing down the necessary props for form management and modal control */}
+      <AddItemModal
         open={open}
-        onClose={handleClose}
-        aria-labelledby="modal-modal-title"
-        aria-describedby="modal-modal-description"
-      >
-        <Box sx={style}>
-          <Typography id="modal-modal-title" variant="h6" component="h2">
-            Add Item
-          </Typography>
-          <Stack width="100%" spacing={2}>
-            <TextField
-              id="outlined-name"
-              label="Name"
-              variant="outlined"
-              fullWidth
-              value={itemName}
-              onChange={(e) => setItemName(e.target.value)}
-            />
-            <TextField
-              id="outlined-purchaseDate"
-              label="Purchase Date"
-              variant="outlined"
-              fullWidth
-              value={purchaseDate}
-              onChange={(e) => setPurchaseDate(e.target.value)}
-            />
-            <TextField
-              id="outlined-purchaseTotal"
-              label="Purchase Total"
-              variant="outlined"
-              fullWidth
-              type="text" // Ensure it accepts text so users can input "$100"
-              value={purchaseTotal}
-              onChange={(e) => setPurchaseTotal(e.target.value)}
-            />
-            <TextField
-              id="outlined-sku"
-              label="SKU"
-              variant="outlined"
-              fullWidth
-              value={sku}
-              onChange={(e) => setSku(e.target.value)}
-            />
-            <TextField
-              id="outlined-size"
-              label="Size"
-              variant="outlined"
-              fullWidth
-              value={size}
-              onChange={(e) => setSize(e.target.value)}
-            />
-            <Button variant="outlined" onClick={addItem}>
-              Add
-            </Button>
-          </Stack>
-        </Box>
-      </Modal>
+        handleClose={() => setOpen(false)}
+        itemName={itemName}
+        setItemName={setItemName}
+        purchaseDate={purchaseDate}
+        setPurchaseDate={setPurchaseDate}
+        purchaseTotal={purchaseTotal}
+        setPurchaseTotal={setPurchaseTotal}
+        sku={sku}
+        setSku={setSku}
+        size={size}
+        setSize={setSize}
+        addItem={addItem}
+      />
     </Box>
   );
 }
