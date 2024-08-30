@@ -1,5 +1,7 @@
+// Rendering is done on the client side currently,
+// For production, must be swithced to server side so api key is not expsoed to users
+// Change firebase rules
 // Import the functions you need from the SDKs you need
-import { initializeApp } from "firebase/app";
 import { getAnalytics } from "firebase/analytics";
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
@@ -9,7 +11,7 @@ import { getFirestore } from 'firebase/firestore';
 // Your web app's Firebase configuration
 // For Firebase JS SDK v7.20.0 and later, measurementId is optional
 const firebaseConfig = {
-  apiKey: process.env.FIREBASE_KEY,
+  apiKey: process.env.NEXT_PUBLIC_FIREBASE_KEY,
   authDomain: "ecom-inventory-managemen-3400e.firebaseapp.com",
   projectId: "ecom-inventory-managemen-3400e",
   storageBucket: "ecom-inventory-managemen-3400e.appspot.com",
@@ -20,7 +22,7 @@ const firebaseConfig = {
 
 // Initialize Firebase
 const app = initializeApp(firebaseConfig);
-const analytics = getAnalytics(app);
+
 
 const firestore = getFirestore(app);
 export { firestore };
